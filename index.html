@@ -115,7 +115,7 @@
   <p><button class="pill" id="mRegeo">🔄 אתר מחדש את כל הבתים</button> <button class="pill" id="mReset">↺ אפס סימוני ✓</button></p>
   <p style="text-align:left"><button class="pill" id="mClose">סגור</button></p>
 </dialog>
-<dialog id="orig"><img src="original-map.jpg" alt="המפה המקורית"><p style="text-align:left"><button class="pill" onclick="this.closest('dialog').close()">סגור</button></p></dialog>
+<dialog id="orig"><img src="original-map.jpg" alt="המפה המקורית" onerror="this.outerHTML='<p>המפה המקורית לא זמינה כאן</p>'"><p style="text-align:left"><button class="pill" onclick="this.closest('dialog').close()">סגור</button></p></dialog>
 
 <script>
 // ---------- House list (from the paper map). approx = "מיקום משוער – בדקו את מספר הבית" ----------
