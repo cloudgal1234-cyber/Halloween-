@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a1022">
+<title>מפת האלווין רעות</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --bg:#1a1022; --panel:#251633; --panel2:#2f1d41; --text:#f6ecff; --muted:#bba7cf;
+    --orange:#ff8a1f; --green:#4ade80; --blue:#3b82f6; --red:#f87171; --line:#3d2a52;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;overflow:hidden}
+  #map{position:absolute;inset:0;bottom:var(--sheet-h,38vh)}
+  header{position:absolute;top:0;left:0;right:0;z-index:1000;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;
+    display:flex;align-items:center;gap:8px;background:linear-gradient(var(--bg),rgba(26,16,34,.85) 70%,transparent);pointer-events:none}
+  header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .pill{pointer-events:auto}
+  .pill{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:6px 12px;font-size:14px;cursor:pointer}
+  .pill.on{background:var(--orange);color:#1a1022;border-color:var(--orange);font-weight:700}
+  #progress{position:absolute;top:calc(env(safe-area-inset-top) + 52px);right:12px;left:12px;z-index:1000;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13px;display:none}
+  #progress .bar{height:6px;background:var(--line);border-radius:3px;margin-top:6px;overflow:hidden}
+  #progress .bar i{display:block;height:100%;background:var(--orange);width:0}
+  #fabs{position:absolute;left:12px;bottom:calc(var(--sheet-h,38vh) + 12px);z-index:1000;display:flex;flex-direction:column;gap:8px}
+  .fab{width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:22px;
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+  .fab.on{background:var(--blue);border-color:var(--blue)}
+  #sheet{position:absolute;left:0;right:0;bottom:0;height:var(--sheet-h,38vh);background:var(--panel);z-index:1001;
+    border-radius:16px 16px 0 0;border-top:1px solid var(--line);display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom)}
+  #grab{padding:8px 0 4px;cursor:ns-resize;touch-action:none}
+  #grab::before{content:"";display:block;width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto}
+  #nav{display:none;margin:0 12px 8px;padding:10px 12px;background:var(--panel2);border:1px solid var(--orange);border-radius:12px}
+  #nav .row{display:flex;align-items:center;gap:10px}
+  #nav .arrow{font-size:30px;width:40px;text-align:center;transition:transform .3s;color:var(--orange)}
+  #nav .t{flex:1}
+  #nav .t b{font-size:17px}
+  #nav .t div{font-size:13px;color:var(--muted)}
+  #nav .btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  #nav .btns a,#nav .btns button{flex:1;text-align:center;text-decoration:none;font-size:13px;padding:8px 6px}
+  #summary{display:flex;justify-content:space-between;align-items:center;padding:0 14px 6px;font-size:13px;color:var(--muted)}
+  #list{flex:1;overflow-y:auto;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
+  .item{display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+  .item.near{background:rgba(255,138,31,.12);border-radius:10px}
+  .item.done{opacity:.5}
+  .item.done .name{text-decoration:line-through}
+  .item .chk{width:30px;height:30px;border-radius:8px;border:2px solid var(--muted);display:grid;place-items:center;font-size:18px;flex:none;background:none;color:var(--green)}
+  .item.done .chk{border-color:var(--green)}
+  .item .name{font-size:16px;font-weight:600}
+  .item .sub{font-size:12px;color:var(--muted)}
+  .item .d{margin-inline-start:auto;font-size:14px;color:var(--orange);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .item .go{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:6px 10px;font-size:14px}
+  #toast{position:absolute;top:calc(env(safe-area-inset-top) + 56px);left:12px;right:12px;z-index:1100;background:var(--orange);color:#1a1022;
+    border-radius:14px;padding:12px 14px;font-weight:700;display:none;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+  #toast .tb{display:flex;gap:8px;margin-top:8px}
+  #toast button{flex:1;border:0;border-radius:10px;padding:8px;font-weight:700;background:#1a1022;color:var(--text)}
+  .house-ic{font-size:26px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6));text-align:center}
+  .house-ic span{display:block;font-size:11px;font-weight:700;color:#1a1022;background:var(--orange);border-radius:6px;padding:1px 4px;white-space:nowrap;
+    position:absolute;top:28px;left:50%;transform:translateX(-50%)}
+  .house-ic.done span{background:var(--green)}
+  .house-ic.approx span{background:#fcd34d}
+  .house-ic.sel{transform:scale(1.35)}
+  .me-dot{width:18px;height:18px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 6px rgba(59,130,246,.3)}
+  .leaflet-popup-content{direction:rtl;text-align:right;font-family:inherit}
+  .leaflet-popup-content button{margin-top:6px;margin-inline-end:4px}
+  dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;max-width:min(92vw,520px);padding:16px}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  dialog img{width:100%;border-radius:8px}
+  dialog textarea{width:100%;height:120px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;font-size:12px;direction:ltr}
+  .muted{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎃 מפת האלווין של רעות</h1>
+  <button class="pill" id="btnFilter">הכל</button>
+  <button class="pill" id="btnMenu">☰</button>
+</header>
+<div id="progress"><span id="progText">מאתר את הבתים במפה…</span><div class="bar"><i id="progBar"></i></div></div>
+<div id="map"></div>
+<div id="toast"><div id="toastText"></div><div class="tb"><button id="toastDone">✓ סמנו שהיינו</button><button id="toastClose">סגור</button></div></div>
+<div id="fabs">
+  <button class="fab" id="btnFollow" title="עקוב אחרי">📍</button>
+  <button class="fab" id="btnFit" title="כל הבתים">🗺️</button>
+</div>
+<div id="sheet">
+  <div id="grab"></div>
+  <div id="nav">
+    <div class="row">
+      <div class="arrow" id="navArrow">⬆</div>
+      <div class="t"><b id="navName"></b><div id="navInfo"></div></div>
+      <button class="pill" id="navStop">✕</button>
+    </div>
+    <div class="btns">
+      <a class="pill" id="navGoogle" target="_blank" rel="noopener">Google Maps 🚶</a>
+      <a class="pill" id="navWaze" target="_blank" rel="noopener">Waze</a>
+      <button class="pill" id="navDone">✓ היינו</button>
+    </div>
+  </div>
+  <div id="summary"><span id="sumText"></span><span id="gpsText">📡 ממתין למיקום…</span></div>
+  <div id="list"></div>
+</div>
+
+<dialog id="menu">
+  <h3 style="margin-top:0">תפריט</h3>
+  <p><button class="pill" id="mOrig">📄 המפה המקורית</button></p>
+  <p><button class="pill" id="mEdit">✋ מצב תיקון מיקומים (גרירת בתים)</button></p>
+  <p class="muted">אם בית מופיע במקום לא נכון – הפעילו מצב תיקון וגררו אותו למקום הנכון. התיקון נשמר במכשיר.</p>
+  <p><button class="pill" id="mExport">📤 ייצוא מיקומים</button> <button class="pill" id="mImport">📥 ייבוא</button></p>
+  <textarea id="mText" style="display:none" placeholder="הדביקו כאן מיקומים שיוצאו ממכשיר אחר"></textarea>
+  <p><button class="pill" id="mRegeo">🔄 אתר מחדש את כל הבתים</button> <button class="pill" id="mReset">↺ אפס סימוני ✓</button></p>
+  <p style="text-align:left"><button class="pill" id="mClose">סגור</button></p>
+</dialog>
+<dialog id="orig"><img src="original-map.jpg" alt="המפה המקורית"><p style="text-align:left"><button class="pill" onclick="this.closest('dialog').close()">סגור</button></p></dialog>
+
+<script>
+// ---------- House list (from the paper map). approx = "מיקום משוער – בדקו את מספר הבית" ----------
+const HOUSES = [
+  ["גליל",58,0],["גליל",45,1],["בשן",2,1,"פינת ערבי נחל"],["ארבל",40,0],["גלבוע",36,1],
+  ["גליל",28,1],["גליל",26,0],["כרמל",9,1],["ארבל",18,0],["אביטל",69,0],["גליל",17,1],
+  ["ארבל",16,0],["אביטל",62,1],["ארבל",12,1],["מירון",9,1],["אגוז",7,0],
+  ["גבעת הלבונה",1,1],["גבעת הלבונה",5,1],["עצמון",29,0],["עצמון",33,1],["גבעת הלבונה",51,0],
+  ["תומר",6,1],["תומר",2,1],["תומר",12,1],["רותם",22,1],["תאנה",28,0],["התאנה",20,0],
+  ["אלה",44,1,"מספר הבית לא אותו במפה"],["קשת",18,1],["עומרים",20,1],["ברקת",28,0],["ברקת",24,0],
+  ["ספיר",6,0],["שוהם",38,0],["שדרות הפרחים",38,1],["סביונים",11,0],["אירוסים",54,0],
+  ["אירוסים",52,1],["סחלב",2,1],["סחלב",15,1],["אירוסים",85,0],["צבעוני",8,0],["לילך",88,0]
+].map(([street,num,approx,note])=>({id:street+" "+num,street,num,approx:!!approx,note:note||""}));
+
+const CITY = "מודיעין-מכבים-רעות";
+const DEFAULT_CENTER = [31.889, 35.018]; // Re'ut area, refined after geocoding
+const NEAR_M = 35;           // "you're here" radius
+const LS = k => "hw-reut-"+k;
+
+// ---------- storage helpers (never fatal) ----------
+function load(k,d){try{const v=localStorage.getItem(LS(k));return v?JSON.parse(v):d}catch(e){return d}}
+function save(k,v){try{localStorage.setItem(LS(k),JSON.stringify(v))}catch(e){}}
+let coords = load("coords",{});    // id -> {lat,lng,prec:'house'|'street'|'manual'|'none'}
+let visited = load("visited",{});  // id -> true
+let filter = load("filter","all"); // all | todo
+
+// ---------- map ----------
+const map = L.map("map",{zoomControl:false}).setView(DEFAULT_CENTER,15);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,
+  attribution:'&copy; OpenStreetMap'}).addTo(map);
+const markers = {};
+let editMode=false, me=null, meMarker=null, meCircle=null, follow=true, target=null, routeLine=null,
+    lastRouteFrom=null, heading=null, toastFor=null, dismissed={};
+
+function dist(a,b){const R=6371000,toR=Math.PI/180,dLat=(b.lat-a.lat)*toR,dLng=(b.lng-a.lng)*toR;
+  const s=Math.sin(dLat/2)**2+Math.cos(a.lat*toR)*Math.cos(b.lat*toR)*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(s))}
+function bearing(a,b){const toR=Math.PI/180,y=Math.sin((b.lng-a.lng)*toR)*Math.cos(b.lat*toR),
+  x=Math.cos(a.lat*toR)*Math.sin(b.lat*toR)-Math.sin(a.lat*toR)*Math.cos(b.lat*toR)*Math.cos((b.lng-a.lng)*toR);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360}
+function fmt(m){return m<1000?Math.round(m)+" מ'":(m/1000).toFixed(1)+" ק\"מ"}
+const label = h => (h.street==="התאנה"?"התאנה":h.street)+" "+h.num;
+
+function icon(h){
+  const cls=["house-ic",visited[h.id]?"done":"",(coords[h.id]&&coords[h.id].prec!=="house"&&coords[h.id].prec!=="manual"||h.approx)&&!visited[h.id]?"approx":"",target===h?"sel":""].join(" ");
+  return L.divIcon({className:"",html:`<div class="${cls}">${visited[h.id]?"✅":"🏠"}<span>${label(h)}</span></div>`,iconSize:[30,30],iconAnchor:[15,15]});
+}
+function popupHtml(h){
+  const c=coords[h.id];
+  const precTxt = c.prec==="street"?"⚠️ מיקום לפי הרחוב בלבד – חפשו את מספר הבית":c.prec==="manual"?"📌 מיקום שתוקן ידנית":h.approx?"⚠️ מיקום משוער – בדקו את מספר הבית":"";
+  return `<b>${label(h)}</b>${h.note?`<br><small>${h.note}</small>`:""}${precTxt?`<br><small>${precTxt}</small>`:""}<br>
+    <button class="pill" onclick="startNav('${h.id}')">🧭 נווט</button>
+    <button class="pill" onclick="toggleVisited('${h.id}')">${visited[h.id]?"↺ בטל ✓":"✓ היינו"}</button>`;
+}
+function renderMarker(h){
+  const c=coords[h.id]; if(!c||c.prec==="none") return;
+  if(!markers[h.id]){
+    const m=L.marker([c.lat,c.lng],{icon:icon(h),draggable:editMode}).addTo(map);
+    m.on("dragend",()=>{const p=m.getLatLng();coords[h.id]={lat:p.lat,lng:p.lng,prec:"manual"};save("coords",coords);refresh()});
+    m.on("click",()=>{ if(!editMode) m.bindPopup(popupHtml(h)).openPopup() });
+    markers[h.id]=m;
+  } else { markers[h.id].setLatLng([c.lat,c.lng]); markers[h.id].setIcon(icon(h)); }
+  const hide = filter==="todo" && visited[h.id];
+  markers[h.id].setOpacity(hide?0:1);
+}
+
+// ---------- list ----------
+function sorted(){
+  return HOUSES.map(h=>{const c=coords[h.id];return {h,d:(me&&c&&c.prec!=="none")?dist(me,c):null}})
+    .sort((a,b)=>(!!visited[a.h.id]-!!visited[b.h.id]) || ((a.d??1e9)-(b.d??1e9)) || a.h.id.localeCompare(b.h.id,"he"));
+}
+function renderList(){
+  const done=HOUSES.filter(h=>visited[h.id]).length;
+  document.getElementById("sumText").textContent=`🍬 ${done} / ${HOUSES.length} בתים`;
+  const el=document.getElementById("list"); el.innerHTML="";
+  sorted().forEach(({h,d})=>{
+    if(filter==="todo"&&visited[h.id]) return;
+    const c=coords[h.id];
+    const div=document.createElement("div");
+    div.className="item"+(visited[h.id]?" done":"")+(d!=null&&d<NEAR_M&&!visited[h.id]?" near":"");
+    const sub=[h.note, !c?"מאתר…":c.prec==="none"?"לא נמצא – גררו ידנית":c.prec==="street"?"לפי רחוב בלבד":h.approx?"מיקום משוער":""].filter(Boolean).join(" · ");
+    div.innerHTML=`<button class="chk">${visited[h.id]?"✓":""}</button>
+      <div><div class="name">${label(h)}</div>${sub?`<div class="sub">${sub}</div>`:""}</div>
+      <div class="d">${d!=null?fmt(d):""}</div>
+      ${c&&c.prec!=="none"?`<button class="go">🧭</button>`:""}`;
+    div.querySelector(".chk").onclick=e=>{e.stopPropagation();toggleVisited(h.id)};
+    const go=div.querySelector(".go"); if(go) go.onclick=e=>{e.stopPropagation();startNav(h.id)};
+    div.onclick=()=>{ if(c&&c.prec!=="none"){ follow=false;updFollowBtn(); map.setView([c.lat,c.lng],18); markers[h.id]&&markers[h.id].bindPopup(popupHtml(h)).openPopup(); } };
+    el.appendChild(div);
+  });
+}
+function refresh(){HOUSES.forEach(renderMarker);renderList();updateNav();checkNear();}
+
+window.toggleVisited=id=>{ if(visited[id]) delete visited[id]; else {visited[id]=true; if(navigator.vibrate)navigator.vibrate(60);}
+  save("visited",visited); map.closePopup(); if(target&&target.id===id&&visited[id]) stopNav(); refresh(); };
+
+// ---------- geolocation ----------
+function onPos(p){
+  me={lat:p.coords.latitude,lng:p.coords.longitude};
+  if(p.coords.heading!=null&&!isNaN(p.coords.heading)) heading=p.coords.heading;
+  document.getElementById("gpsText").textContent=`📡 דיוק ${Math.round(p.coords.accuracy)} מ'`;
+  if(!meMarker){
+    meMarker=L.marker([me.lat,me.lng],{icon:L.divIcon({className:"",html:'<div class="me-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000}).addTo(map);
+    meCircle=L.circle([me.lat,me.lng],{radius:p.coords.accuracy,color:"#3b82f6",weight:1,fillOpacity:.1}).addTo(map);
+    map.setView([me.lat,me.lng],17);
+  } else { meMarker.setLatLng([me.lat,me.lng]); meCircle.setLatLng([me.lat,me.lng]).setRadius(p.coords.accuracy); }
+  if(follow) map.panTo([me.lat,me.lng],{animate:true});
+  renderList(); updateNav(); checkNear();
+}
+function onPosErr(e){
+  document.getElementById("gpsText").textContent = e.code===1?"🚫 אין הרשאת מיקום":"📡 אין מיקום";
+}
+if("geolocation" in navigator){
+  navigator.geolocation.watchPosition(onPos,onPosErr,{enableHighAccuracy:true,maximumAge:3000,timeout:20000});
+} else onPosErr({code:0});
+window.addEventListener("deviceorientationabsolute",e=>{ if(e.alpha!=null) heading=(360-e.alpha)%360; updateNav(); },true);
+window.addEventListener("deviceorientation",e=>{ if(e.webkitCompassHeading!=null){heading=e.webkitCompassHeading; updateNav();} },true);
+
+// ---------- nearby alert ----------
+function checkNear(){
+  if(!me) return;
+  let best=null;
+  HOUSES.forEach(h=>{const c=coords[h.id]; if(!c||c.prec==="none"||visited[h.id]||dismissed[h.id]) return;
+    const d=dist(me,c); if(d<NEAR_M&&(!best||d<best.d)) best={h,d};});
+  const t=document.getElementById("toast");
+  if(best){
+    if(toastFor!==best.h.id){ toastFor=best.h.id; if(navigator.vibrate) navigator.vibrate([100,60,100]); }
+    document.getElementById("toastText").textContent=`👻 אתם ליד ${label(best.h)}! (${fmt(best.d)})`+(best.h.approx?" – בדקו את מספר הבית":"");
+    t.style.display="block";
+  } else { t.style.display="none"; toastFor=null; }
+}
+document.getElementById("toastDone").onclick=()=>{ if(toastFor) toggleVisited(toastFor); };
+document.getElementById("toastClose").onclick=()=>{ if(toastFor) dismissed[toastFor]=true; checkNear(); };
+
+// ---------- navigation ----------
+window.startNav=id=>{
+  target=HOUSES.find(h=>h.id===id); map.closePopup(); lastRouteFrom=null;
+  const c=coords[id];
+  document.getElementById("navGoogle").href=`https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}&travelmode=walking`;
+  document.getElementById("navWaze").href=`https://waze.com/ul?ll=${c.lat},${c.lng}&navigate=yes`;
+  document.getElementById("nav").style.display="block";
+  follow=true; updFollowBtn();
+  if(me) map.fitBounds(L.latLngBounds([me.lat,me.lng],[c.lat,c.lng]).pad(.3)); else map.setView([c.lat,c.lng],17);
+  refresh();
+};
+function stopNav(){ target=null; document.getElementById("nav").style.display="none"; if(routeLine){map.removeLayer(routeLine);routeLine=null;} refresh(); }
+document.getElementById("navStop").onclick=stopNav;
+document.getElementById("navDone").onclick=()=>{ if(target) toggleVisited(target.id); };
+
+async function fetchRoute(from,to){
+  // walking route (FOSSGIS OSRM foot profile); falls back to a straight line
+  try{
+    const r=await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`);
+    const j=await r.json(); if(j.routes&&j.routes[0]) return {pts:j.routes[0].geometry.coordinates.map(([x,y])=>[y,x]),m:j.routes[0].distance};
+  }catch(e){}
+  return null;
+}
+async function updateNav(){
+  if(!target) return;
+  const c=coords[target.id];
+  document.getElementById("navName").textContent="🧭 "+label(target);
+  if(!me){ document.getElementById("navInfo").textContent="ממתין למיקום שלך…"; return; }
+  const d=dist(me,c), b=bearing(me,c);
+  const rel = heading!=null ? (b-heading+360)%360 : b;
+  document.getElementById("navArrow").style.transform=`rotate(${rel}deg)`;
+  const dirs=["צפון","צפון-מזרח","מזרח","דרום-מזרח","דרום","דרום-מערב","מערב","צפון-מערב"];
+  document.getElementById("navInfo").textContent = d<NEAR_M ? "🎉 הגעתם!" :
+    `${fmt(d)} באוויר · כיוון ${dirs[Math.round(b/45)%8]}`+(routeLine&&routeLine._m?` · ${fmt(routeLine._m)} הליכה`:"");
+  if(!lastRouteFrom || dist(lastRouteFrom,me)>25){
+    lastRouteFrom={...me}; const tid=target.id;
+    const r=await fetchRoute(me,c);
+    if(!target||target.id!==tid) return;
+    if(routeLine) map.removeLayer(routeLine);
+    routeLine = r ? L.polyline([[me.lat,me.lng],...r.pts,[c.lat,c.lng]],{color:"#ff8a1f",weight:6,opacity:.9})
+                  : L.polyline([[me.lat,me.lng],[c.lat,c.lng]],{color:"#ff8a1f",weight:4,dashArray:"8 8"});
+    routeLine._m = r ? r.m : null; routeLine.addTo(map);
+  } else if(routeLine && !routeLine._m){ routeLine.setLatLngs([[me.lat,me.lng],[c.lat,c.lng]]); }
+}
+
+// ---------- geocoding (OpenStreetMap Nominatim, 1 req/sec, cached on device) ----------
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function nominatim(params){
+  const u="https://nominatim.openstreetmap.org/search?"+new URLSearchParams({format:"jsonv2",limit:"5",countrycodes:"il","accept-language":"he",addressdetails:"1",...params});
+  try{const r=await fetch(u); if(!r.ok) return []; return (await r.json()).map(x=>({lat:+x.lat,lng:+x.lon,addr:x.address||{},type:x.addresstype||x.type}));}
+  catch(e){return []}
+}
+function streetVariants(s){ const v=[s]; if(s.startsWith("ה")) v.push(s.slice(1)); else v.push("ה"+s); return v; }
+function median(arr){const a=[...arr].sort((x,y)=>x-y);return a[Math.floor(a.length/2)]}
+
+async function geocodeAll(force){
+  const todo=HOUSES.filter(h=>force||!coords[h.id]||(coords[h.id].prec!=="manual"&&coords[h.id].v!==2));
+  if(!todo.length) return;
+  const prog=document.getElementById("progress"); prog.style.display="block";
+  const cands={}; let i=0;
+  const streetCache={};
+  for(const h of todo){
+    i++; document.getElementById("progText").textContent=`מאתר את הבתים במפה… ${i}/${todo.length} (${label(h)})`;
+    document.getElementById("progBar").style.width=(i/todo.length*100)+"%";
+    let list=[], prec="house";
+    for(const s of streetVariants(h.street)){
+      list=(await nominatim({street:`${h.num} ${s}`,city:CITY})).filter(x=>x.addr.house_number);
+      await sleep(1100); if(list.length) break;
+    }
+    if(!list.length){
+      prec="street";
+      for(const s of streetVariants(h.street)){
+        if(!streetCache[s]){ streetCache[s]=await nominatim({street:s,city:CITY}); await sleep(1100); }
+        list=streetCache[s]; if(list.length) break;
+      }
+    }
+    cands[h.id]={list,prec};
+    if(list.length){ coords[h.id]={lat:list[0].lat,lng:list[0].lng,prec,v:2}; renderMarker(h); renderList(); }
+  }
+  // pick, per house, the candidate closest to the cluster center (filters same-name streets elsewhere in the city)
+  const all=Object.values(coords).filter(c=>c.prec!=="none");
+  if(all.length){
+    const center={lat:median(all.map(c=>c.lat)),lng:median(all.map(c=>c.lng))};
+    for(const h of todo){
+      const {list,prec}=cands[h.id];
+      if(!list.length){ coords[h.id]={lat:center.lat,lng:center.lng,prec:"none",v:2}; continue; }
+      const best=list.reduce((a,b)=>dist(center,a)<=dist(center,b)?a:b);
+      coords[h.id]={lat:best.lat,lng:best.lng,prec,v:2};
+    }
+  }
+  save("coords",coords); prog.style.display="none"; refresh(); if(!me) fitAll();
+}
+function fitAll(){const pts=HOUSES.map(h=>coords[h.id]).filter(c=>c&&c.prec!=="none").map(c=>[c.lat,c.lng]);
+  if(me) pts.push([me.lat,me.lng]); if(pts.length) map.fitBounds(L.latLngBounds(pts).pad(.1));}
+
+// ---------- UI wiring ----------
+function updFollowBtn(){document.getElementById("btnFollow").classList.toggle("on",follow)}
+map.on("dragstart",()=>{follow=false;updFollowBtn()});
+document.getElementById("btnFollow").onclick=()=>{follow=true;updFollowBtn(); if(me) map.setView([me.lat,me.lng],Math.max(map.getZoom(),17));};
+document.getElementById("btnFit").onclick=()=>{follow=false;updFollowBtn();fitAll()};
+function updFilter(){const b=document.getElementById("btnFilter");b.textContent=filter==="all"?"הכל":"נשארו";b.classList.toggle("on",filter==="todo")}
+document.getElementById("btnFilter").onclick=()=>{filter=filter==="all"?"todo":"all";save("filter",filter);updFilter();refresh()};
+const menu=document.getElementById("menu");
+document.getElementById("btnMenu").onclick=()=>menu.showModal();
+document.getElementById("mClose").onclick=()=>menu.close();
+document.getElementById("mOrig").onclick=()=>{menu.close();document.getElementById("orig").showModal()};
+document.getElementById("mEdit").onclick=e=>{
+  editMode=!editMode; e.target.classList.toggle("on",editMode);
+  Object.values(markers).forEach(m=>editMode?m.dragging.enable():m.dragging.disable());
+  // place unfound houses at the map center so they can be dragged
+  if(editMode){ const c=map.getCenter(); HOUSES.forEach(h=>{ if(coords[h.id]&&coords[h.id].prec==="none"){coords[h.id]={lat:c.lat,lng:c.lng,prec:"manual"};renderMarker(h);markers[h.id].dragging.enable();} }); save("coords",coords); renderList(); }
+  menu.close();
+};
+document.getElementById("mExport").onclick=async()=>{
+  const t=document.getElementById("mText"); t.style.display="block"; t.value=JSON.stringify(coords);
+  try{await navigator.clipboard.writeText(t.value); alert("המיקומים הועתקו – שלחו למשפחה ושיבחרו 'ייבוא'");}catch(e){t.select();}
+};
+document.getElementById("mImport").onclick=()=>{
+  const t=document.getElementById("mText");
+  if(t.style.display!=="block"||!t.value.trim()){t.style.display="block";t.value="";t.focus();return;}
+  try{const v=JSON.parse(t.value); Object.assign(coords,v); save("coords",coords); refresh(); alert("יובא ✓"); menu.close();}catch(e){alert("טקסט לא תקין")}
+};
+document.getElementById("mRegeo").onclick=()=>{ if(confirm("לאתר מחדש? תיקונים ידניים יימחקו.")){ coords={}; Object.values(markers).forEach(m=>map.removeLayer(m)); for(const k in markers) delete markers[k]; menu.close(); geocodeAll(true);} };
+document.getElementById("mReset").onclick=()=>{ if(confirm("לאפס את כל הסימונים?")){ visited={}; save("visited",visited); refresh(); menu.close(); } };
+
+// resizable bottom sheet
+(function(){
+  const g=document.getElementById("grab"); let y0=null,h0=0;
+  const setH=h=>{h=Math.max(110,Math.min(window.innerHeight*.85,h));document.documentElement.style.setProperty("--sheet-h",h+"px");map.invalidateSize();};
+  g.addEventListener("pointerdown",e=>{y0=e.clientY;h0=document.getElementById("sheet").offsetHeight;g.setPointerCapture(e.pointerId)});
+  g.addEventListener("pointermove",e=>{if(y0!=null)setH(h0+(y0-e.clientY))});
+  g.addEventListener("pointerup",()=>{y0=null});
+})();
+
+updFilter(); updFollowBtn(); refresh();
+if(Object.keys(coords).length) fitAll();
+geocodeAll(false);
+</script>
+</body>
+</html>
